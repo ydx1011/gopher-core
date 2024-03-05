@@ -4,6 +4,7 @@ import (
 	"github.com/xfali/xlog"
 	"github.com/ydx1011/gopher-core/appcontext"
 	"github.com/ydx1011/gopher-core/bean"
+	"github.com/ydx1011/gopher-core/util"
 	"github.com/ydx1011/yfig"
 )
 
@@ -69,4 +70,24 @@ func NewApplication(prop yfig.Properties, opts ...Opt) *FileConfigApplication {
 	}
 
 	return ret
+}
+
+func (app *FileConfigApplication) RegisterBean(o interface{}, opts ...RegisterOpt) error {
+	return app.ctx.RegisterBean(o, opts...)
+}
+
+func (app *FileConfigApplication) RegisterBeanByName(name string, o interface{}, opts ...RegisterOpt) error {
+	return app.ctx.RegisterBeanByName(name, o, opts...)
+}
+
+func (app *FileConfigApplication) AddListeners(listeners ...interface{}) {
+	app.ctx.AddListeners(listeners...)
+}
+
+func (app *FileConfigApplication) Run() error {
+	err := app.ctx.Start()
+	if err != nil {
+		return err
+	}
+	return util.HandlerSignal(app.logger, app.ctx.Close)
 }

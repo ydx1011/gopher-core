@@ -289,16 +289,6 @@ func (ctx *defaultApplicationContext) doProcess() {
 	}
 }
 
-func (ctx *defaultApplicationContext) notifyStarted() {
-	if ctx.disableEvent {
-		return
-	}
-	e := &ContextStartedEvent{}
-	e.ResetOccurredTime()
-	e.ctx = ctx
-	ctx.PublishEvent(e)
-}
-
 func (ctx *defaultApplicationContext) PublishEvent(e ApplicationEvent) error {
 	return ctx.eventProc.PublishEvent(e)
 }

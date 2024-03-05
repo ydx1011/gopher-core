@@ -58,13 +58,21 @@ type ApplicationContextEvent struct {
 	ctx ApplicationContext
 }
 
+func (e *BaseApplicationEvent) ResetOccurredTime() {
+	e.timestamp = time.Now()
+}
+
+func (e *BaseApplicationEvent) OccurredTime() time.Time {
+	return e.timestamp
+}
+
+func (e *ApplicationContextEvent) GetContext() ApplicationContext {
+	return e.ctx
+}
+
 // 服务启动后触发，Bean已经初始化完成，可以执行任意的业务逻辑
 type ContextStartedEvent struct {
 	ApplicationContextEvent
-}
-
-func (e *BaseApplicationEvent) ResetOccurredTime() {
-	e.timestamp = time.Now()
 }
 
 // 服务停止后触发，应尽快做清理工作

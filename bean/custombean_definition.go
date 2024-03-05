@@ -2,6 +2,7 @@ package bean
 
 import (
 	"fmt"
+	"github.com/ydx1011/gopher-core/reflection"
 	"reflect"
 )
 
@@ -71,4 +72,61 @@ func (b *defaultCustomBeanFactory) InitMethodName() string {
 
 func (b *defaultCustomBeanFactory) DestroyMethodName() string {
 	return b.destroyMethod
+}
+
+type customMethodBeanDefinition struct {
+	functionExDefinition
+	initializingFuncName string
+	disposableFuncName   string
+}
+
+func newCustomMethodBeanDefinition(b CustomBeanFactory) (Definition, error) {
+	d, err := newFunctionExDefinition(b.BeanFactory())
+	if err != nil {
+		return nil, err
+	}
+	ret := &customMethodBeanDefinition{
+		functionExDefinition: *d.(*functionExDefinition),
+		initializingFuncName: b.InitMethodName(),
+		disposableFuncName:   b.DestroyMethodName(),
+	}
+
+	return ret, ret.verifyCustomBeanFunction()
+}
+
+func (d *customMethodBeanDefinition) verifyCustomBeanFunction() error {
+	rt := d.t
+	if d.initializingFuncName != "" {
+		if !checkPublic(d.initializingFuncName) {
+			return fmt.Errorf("Type %s init method %s is private ", reflection.GetTypeName(d.t), d.initializingFuncName)
+		}
+		m, ok := rt.MethodByName(d.initializingFuncName)
+		if !ok {
+			return fmt.Errorf("Type %s init method %s not found ", reflection.GetTypeName(d.t), d.initializingFuncName)
+		} else {
+			if m.Type.NumIn() == 0 {
+				return fmt.Errorf("Type %s init method %s cannot with params ", reflection.GetTypeName(d.t), d.initializingFuncName)
+			}
+		}
+	}
+
+	if d.disposableFuncName != "" {
+		if !checkPublic(d.initializingFuncName) {
+			return fmt.Errorf("Type %s destroy method %s is private ", reflection.GetTypeName(d.t), d.initializingFuncName)
+		}
+		m, ok := rt.MethodByName(d.disposableFuncName)
+		if !ok {
+			return fmt.Errorf("Type %s destroy method %s not found ", reflection.GetTypeName(d.t), d.disposableFuncName)
+		} else {
+			if m.Type.NumIn() == 0 {
+				return fmt.Errorf("Type %s destroy method %s cannot with params ", reflection.GetTypeName(d.t), d.disposableFuncName)
+			}
+		}
+	}
+
+	return nil
+}
+
+func checkPublic(name string) bool {
+	return name[0] >= 'A' && name[0] <= 'Z'
 }

@@ -48,7 +48,7 @@ func NewDefaultApplicationContext(opts ...Opt) *defaultApplicationContext {
 	ret := &defaultApplicationContext{
 		logger:    xlog.GetLogger(),
 		container: bean.NewContainer(),
-		//eventProc: NewEventProcessor(),
+		eventProc: NewEventProcessor(),
 
 		curState: statusNone,
 	}

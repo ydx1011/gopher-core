@@ -33,9 +33,9 @@ type EventProcessorOpt func(processor *defaultEventProcessor)
 
 func NewEventProcessor(opts ...EventProcessorOpt) *defaultEventProcessor {
 	ret := &defaultEventProcessor{
-		logger:       xlog.GetLogger(),
-		eventBufSize: defaultEventBufferSize,
-		//consumerListenerFac: defaultConsumerListenerFac,
+		logger:              xlog.GetLogger(),
+		eventBufSize:        defaultEventBufferSize,
+		consumerListenerFac: defaultConsumerListenerFac,
 	}
 
 	for _, opt := range opts {
@@ -43,8 +43,165 @@ func NewEventProcessor(opts ...EventProcessorOpt) *defaultEventProcessor {
 	}
 	return ret
 }
+func (h *defaultEventProcessor) Start() error {
+	h.eventChan = make(chan ApplicationEvent, h.eventBufSize)
+	h.stopChan = make(chan struct{})
+	h.finishChan = make(chan struct{})
+	h.closeOnce = sync.Once{}
+
+	go h.eventLoop()
+
+	return nil
+}
+
+func (h *defaultEventProcessor) eventLoop() {
+	defer func() {
+		select {
+		case <-h.finishChan:
+			return
+		default:
+			close(h.finishChan)
+		}
+	}()
+	for {
+		select {
+		case <-h.stopChan:
+			size := len(h.eventChan)
+			for i := 0; i < size; i++ {
+				h.notifyEvent(<-h.eventChan)
+			}
+			return
+		case e, ok := <-h.eventChan:
+			if ok {
+				h.notifyEvent(e)
+			}
+		}
+	}
+}
+
+func (h *defaultEventProcessor) Close() (err error) {
+	h.closeOnce.Do(func() {
+		close(h.stopChan)
+		//wait for eventLoop exit
+		<-h.finishChan
+		h.logger.Infoln("Event Processor closed.")
+	})
+
+	return
+}
+
+func (h *defaultEventProcessor) AddListeners(listeners ...interface{}) {
+	for _, o := range listeners {
+		h.processListener(o)
+	}
+}
+
+func (h *defaultEventProcessor) PublishEvent(e ApplicationEvent) error {
+	if e == nil {
+		return errors.New("event is nil. ")
+	}
+	select {
+	case h.eventChan <- e:
+		return nil
+	default:
+		return errors.New("event queue is full. ")
+	}
+}
+
+func (h *defaultEventProcessor) NotifyEvent(e ApplicationEvent) error {
+	h.notifyEvent(e)
+	return nil
+}
+
+func (h *defaultEventProcessor) notifyEvent(e ApplicationEvent) {
+	h.listenerLock.Lock()
+	defer h.listenerLock.Unlock()
+
+	for _, v := range h.listeners {
+		v.OnApplicationEvent(e)
+	}
+}
+
+func (h *defaultEventProcessor) processListener(o interface{}) {
+	l := h.classifyListenerInterface(o)
+	if l != nil {
+		h.addListener(l, true)
+		return
+	}
+
+	l, err := h.parseListener(o)
+	if err != nil {
+		//ctx.logger.Errorln(err)
+	} else if l != nil {
+		h.addListener(l, true)
+	}
+}
+
+func (h *defaultEventProcessor) parseListener(o interface{}) (ApplicationEventListener, error) {
+	l := h.createConsumerListener()
+	if err := l.RegisterApplicationEventConsumer(o); err != nil {
+		return nil, err
+	}
+	return l, nil
+}
+
+func (h *defaultEventProcessor) createConsumerListener() ApplicationEventConsumerListener {
+	return h.consumerListenerFac()
+}
+
+func (h *defaultEventProcessor) classifyListenerInterface(o interface{}) ApplicationEventListener {
+	if l, ok := o.(ApplicationEventListener); ok {
+		return l
+	}
+
+	if c, ok := o.(ApplicationEventConsumer); ok {
+		l := h.createConsumerListener()
+		err := c.RegisterConsumer(l)
+		if err != nil {
+			h.logger.Errorln(err)
+			return nil
+		}
+		return l
+	}
+	return nil
+}
+
+func (h *defaultEventProcessor) addListener(l ApplicationEventListener, withLock bool) {
+	if !withLock {
+		h.listeners = append(h.listeners, l)
+		return
+	}
+
+	h.listenerLock.Lock()
+	defer h.listenerLock.Unlock()
+
+	h.listeners = append(h.listeners, l)
+}
 
 type dummyEventProc struct{}
+
+type eventProcessor struct {
+	invokers []ConsumerInvoker
+}
+
+func defaultConsumerListenerFac() ApplicationEventConsumerListener {
+	return &eventProcessor{}
+}
+
+func (ep *eventProcessor) RegisterApplicationEventConsumer(consumer interface{}) error {
+	invoker := eventInvoker{}
+	if err := invoker.ResolveConsumer(consumer); err != nil {
+		return err
+	}
+	ep.invokers = append(ep.invokers, &invoker)
+	return nil
+}
+
+func (ep *eventProcessor) OnApplicationEvent(e ApplicationEvent) {
+	for _, invoker := range ep.invokers {
+		invoker.Invoke(e)
+	}
+}
 
 func NewDisableEventProcessor() *dummyEventProc {
 	return &dummyEventProc{}
@@ -105,6 +262,15 @@ type ConsumerInvoker interface {
 
 	// 检查consumer是否符合类型要求
 	ResolveConsumer(consumer interface{}) error
+}
+
+func (invoker *consumerInvoker) Invoke(data interface{}) bool {
+	t := reflect.TypeOf(data)
+	if t.AssignableTo(invoker.et) {
+		invoker.fv.Call([]reflect.Value{reflect.ValueOf(data)})
+		return true
+	}
+	return false
 }
 
 type consumerInvoker struct {

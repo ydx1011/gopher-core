@@ -84,3 +84,9 @@ type ContextStoppedEvent struct {
 type ContextClosedEvent struct {
 	ApplicationContextEvent
 }
+
+type ApplicationEventConsumer interface {
+	// 获得ApplicationEvent消费方法，类型func(ApplicationEvent)
+	// 方法应尽快处理事件，耗时操作请使用协程
+	RegisterConsumer(registry ApplicationEventConsumerRegistry) error
+}

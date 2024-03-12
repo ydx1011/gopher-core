@@ -102,6 +102,7 @@ func (ctx *defaultApplicationContext) RegisterBeanByName(name string, o interfac
 		return nil
 	}
 	var err error
+	// todo
 	o, err = injector.WrapBean(o, ctx.container, ctx.injector)
 	if err != nil {
 		return err
@@ -117,9 +118,10 @@ func (ctx *defaultApplicationContext) RegisterBeanByName(name string, o interfac
 	}
 
 	if !ctx.disableEvent {
+		// todo
 		ctx.eventProc.AddListeners(o)
 	}
-
+	// 方法注入
 	err = ctx.classifyInjectFunction(o)
 	if err != nil {
 		return err
@@ -203,8 +205,8 @@ func (ctx *defaultApplicationContext) AddListeners(listeners ...interface{}) {
 }
 
 func (ctx *defaultApplicationContext) printCtxInfo() {
-	path := ctx.config.Get("neve.application.banner", "")
-	mode := ctx.config.Get("neve.application.bannerMode", "")
+	path := ctx.config.Get("gopher.application.banner", "")
+	mode := ctx.config.Get("gopher.application.bannerMode", "")
 	mode = strings.ToLower(mode)
 	printGopherInfo(version.GopherVersion, path, mode != "off" && mode != "false")
 }

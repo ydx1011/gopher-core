@@ -156,6 +156,10 @@ func NewRequiredListener() *RequiredListener {
 	return &l
 }
 
+func (l *RequiredListener) OnInjectFailed(err error) {
+	panic(err)
+}
+
 type OmitErrorListener struct {
 	logger xlog.Logger
 }

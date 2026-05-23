@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/xfali/xlog v0.1.5
-	github.com/ydx1011/yfig v0.0.2
+	github.com/ydx1011/yfig v0.0.3
 )
 
 require (
